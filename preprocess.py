@@ -17,30 +17,24 @@ import soundfile as sf
 from pydub import AudioSegment
 from pydub.silence import *
 
-path = "D:/Python projects/Speaker_Recognition/mydata/train-clean-100"
+#path = "D:/Python projects/Speaker_Recognition/mydata/train-clean-100"
 
 numpyfilespath = "D:/Python projects/Speaker_Recognition/numpydata/"
 
+enrolldata = "D:/Python projects/Speaker_Recognition/enroll-data/"
+userdatapath = "D:/Python projects/Speaker_Recognition/userdata/"
 
 
-#path = "D:/datasets/LibriSpeech/train-clean-100"
+path = "D:/datasets/LibriSpeech/train-clean-100"
 
 #we want variables to have almost zero mean and equal variance
 
-def get_labels():
+def get_labels(path):
     #get folder name 'label' for each speaker
     labels = os.listdir(path)
     #create an array from of value 0,1,2...number_ofspeakers
     label_indices = np.arange(0, len(labels))
     return labels, label_indices
-
-def get_labels_2():
-    #get folder name 'label' for each speaker
-    labels = os.listdir(numpyfilespath)
-    #create an array from of value 0,1,2...number_ofspeakers
-    label_indices = np.arange(0, len(labels))
-    return labels, label_indices
-
 
 
 def index_of_speech_start_updated(wav):
@@ -50,9 +44,7 @@ def index_of_speech_start_updated(wav):
             i = i + 1
         else: break
     return i
-
-
-                
+               
             
 def split_audio_file(file_path):
     sound = AudioSegment.from_file(file_path, format="flac")
@@ -75,31 +67,6 @@ def split_audio_file(file_path):
         listofchunks.append(temp)
         i = i + 1
     return listofchunks
-
-
-
-def mfcc_operation(wavfile_path,max_len,max_len2):
-#    wav , samplingrate = librosa.load(wavfile_path, mono=True, sr=None)
-    with open(wavfile_path, 'rb') as f:
-        wav, samplerate = sf.read(f)
-    index = index_of_speech_start_updated(wav)
-    wav = wav[index:]
-    #using Librosa MFCC
-    #mfcc = librosa.feature.mfcc(wav, sr=8000,n_mfcc=48,n_fft=512, hop_length=512)
-    mfcc = mfcc1(wav,samplerate=16000, numcep=48,nfilt =48)
-    #If maximum length exceeds mfcc lengths then pad the remaining ones
-    if (max_len < mfcc.shape[0]):
-         mfcc = mfcc[:max_len,:]
-    else:
-        pad_width = max_len - mfcc.shape[0]
-        mfcc = np.pad(mfcc, pad_width=((0, pad_width), (0, 0)), mode='constant')
-    if (max_len2 > mfcc.shape[1]):
-        pad_width = max_len2 - mfcc.shape[1]
-        mfcc = np.pad(mfcc, pad_width=((0, 0), (0, pad_width)), mode='constant')
-    # Else cutoff the remaining parts
-    else:
-        mfcc = mfcc[:, :max_len2]
-    return mfcc
 
 def mfcc_on_wav(wav,max_len,max_len2):
     index = index_of_speech_start_updated(wav)
@@ -126,38 +93,64 @@ def plot_audio_signal(wav, sampling_rate,title):
     ax1.set_ylabel('Amplitude')
     ax1.plot(np.linspace(0, len(wav), len(wav)), wav)
 
-#sf.write('D:/Python projects/Speaker_Recognition/test/original.wav', wav, sampling_rate)
-
-
 def save_data_as_numpy_array(max_len,max_len2):
     
-    labels, _ = get_labels()
+    labels, _ = get_labels(path)
     for label in labels:
+        if os.path.exists(numpyfilespath + label + '.npy'):
+            print(label, 'exists...skipping')
+        else:
         # Init mfcc vectors
+            mfcc_vectors = []
+            wavfiles = []
+            for file in os.listdir(path + '/' + label):
+                for wavfile in os.listdir(path + '/' + label + '/' + file):
+                    current_path = path + '/' + label + '/' + file + '/' +wavfile
+                    if wavfile[-3:] != 'txt':
+                        wavfiles.extend([current_path])
+            for wavfile in tqdm(wavfiles, "Saving vectors of label - '{}'".format(label)):
+                splits = split_audio_file(file_path=wavfile)
+                i=0
+                if len(splits) > 0:
+                    while i < len(splits):
+        
+                        mfcc = mfcc_on_wav(splits[i], max_len=max_len,max_len2=max_len2)
+                        mfcc_vectors.append(mfcc)
+                        i = i + 1
+            np.save(numpyfilespath + label + '.npy', mfcc_vectors)
+            
+def save_user_data_as_numpy(max_len,max_len2):
+    
+    labels, _ = get_labels(userdatapath)
+    for label in labels:
+    # Init mfcc vectors
         mfcc_vectors = []
         wavfiles = []
-        for file in os.listdir(path + '/' + label):
-            for wavfile in os.listdir(path + '/' + label + '/' + file):
-                current_path = path + '/' + label + '/' + file + '/' +wavfile
+        for file in os.listdir(userdatapath + '/' + label):
+            for wavfile in os.listdir(userdatapath + '/' + label + '/' + file):
+                current_path = userdatapath + '/' + label + '/' + file + '/' +wavfile
                 if wavfile[-3:] != 'txt':
                     wavfiles.extend([current_path])
         for wavfile in tqdm(wavfiles, "Saving vectors of label - '{}'".format(label)):
             splits = split_audio_file(file_path=wavfile)
             i=0
-            while i < len(splits):
+            if len(splits) > 0:
+                while i < len(splits):
+    
+                    mfcc = mfcc_on_wav(splits[i], max_len=max_len,max_len2=max_len2)
+                    mfcc_vectors.append(mfcc)
+                    i = i + 1
+        np.save(enrolldata + label + '.npy', mfcc_vectors)
+        
 
-                mfcc = mfcc_on_wav(splits[i], max_len=max_len,max_len2=max_len2)
-                mfcc_vectors.append(mfcc)
-                i = i + 1
-        np.save(numpyfilespath + label + '.npy', mfcc_vectors)
-
-def get_train_test(split_ratio, random_state,maxsamples):
+def get_train_test(split_ratio, random_state,maxsamples,path):
     # Get available labels
-    labels, indices = get_labels_2()
-    print(labels[0])
+    labels, indices = get_labels(path)
+    
     # Getting first arrays
     #X = np.load(numpyfilespath + labels[0] + '.npy')
-    X = np.load(numpyfilespath + labels[0])
+    X = np.load(path + labels[0])
+    np.random.shuffle(X)
     if len(X)>maxsamples:
         X = X[:maxsamples,:,:]
     y = np.zeros(X.shape[0])
@@ -165,7 +158,8 @@ def get_train_test(split_ratio, random_state,maxsamples):
     # Append all of the dataset into one single array, same goes for y
     for i, label in enumerate(labels[1:]):
         #x = np.load(numpyfilespath + label + '.npy')
-        x = np.load(numpyfilespath + label)
+        x = np.load(path + label)
+        np.random.shuffle(x)
         if len(x)>maxsamples:
             x = x[:maxsamples,:,:]
         X = np.vstack((X, x))
@@ -176,16 +170,36 @@ def get_train_test(split_ratio, random_state,maxsamples):
     return train_test_split(X, y, test_size= (1 - split_ratio), random_state=random_state, shuffle=True)
 
 
+def save_random_user_data():
+    t,x,t2,y = get_train_test(split_ratio=0.8, random_state=42,maxsamples=40,path=numpyfilespath)
+    x = x[:300]
+    np.save(enrolldata + '0' + '.npy', x)
 
 
 
-#labels,_ = get_labels()
-#for label in labels:
-#    data = np.load(numpyfilespath + label + '.npy')
-#    print('Info about label:',label)
-#    print('Full dataset tensor:', data.shape)
-#    print('Mean:', np.mean(data))
-#    print('Standard deviation:', np.std(data))
+
+#def mfcc_operation(wavfile_path,max_len,max_len2):
+##    wav , samplingrate = librosa.load(wavfile_path, mono=True, sr=None)
+#    with open(wavfile_path, 'rb') as f:
+#        wav, samplerate = sf.read(f)
+#    index = index_of_speech_start_updated(wav)
+#    wav = wav[index:]
+#    #using Librosa MFCC
+#    #mfcc = librosa.feature.mfcc(wav, sr=8000,n_mfcc=48,n_fft=512, hop_length=512)
+#    mfcc = mfcc1(wav,samplerate=16000, numcep=48,nfilt =48)
+#    #If maximum length exceeds mfcc lengths then pad the remaining ones
+#    if (max_len < mfcc.shape[0]):
+#         mfcc = mfcc[:max_len,:]
+#    else:
+#        pad_width = max_len - mfcc.shape[0]
+#        mfcc = np.pad(mfcc, pad_width=((0, pad_width), (0, 0)), mode='constant')
+#    if (max_len2 > mfcc.shape[1]):
+#        pad_width = max_len2 - mfcc.shape[1]
+#        mfcc = np.pad(mfcc, pad_width=((0, 0), (0, pad_width)), mode='constant')
+#    # Else cutoff the remaining parts
+#    else:
+#        mfcc = mfcc[:, :max_len2]
+#    return mfcc
 
 
 
