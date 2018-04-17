@@ -17,20 +17,25 @@ from keras import regularizers
 import numpy as np
 from keras.callbacks import EarlyStopping
 from keras import metrics
+import os
 
 
 
 feature_dim_1 = 40
 feature_dim_2 = 40
 channel = 1
-epochs = 100
+epochs = 75
 batch_size = 100
 
 verbose = 1
 
-#save_data_as_numpy_array(max_len = feature_dim_1, max_len2 = feature_dim_2)
+save_data_as_numpy_array(max_len = feature_dim_1, max_len2 = feature_dim_2)
 
-labels,_ = get_labels_2()
+labels,_ = get_labels(numpyfilespath)
+
+   
+    
+
 #maxsamples = 0
 #avg = 0
 #for label in labels:
@@ -46,7 +51,7 @@ labels,_ = get_labels_2()
 num_classes = len(labels)
 
 
-X_train, X_valid, y_train, y_valid = get_train_test(split_ratio=0.8, random_state=42,maxsamples=510)
+X_train, X_valid, y_train, y_valid = get_train_test(split_ratio=0.8, random_state=42,maxsamples=50,path=numpyfilespath)
 
 X_train = X_train.reshape(X_train.shape[0], feature_dim_1, feature_dim_2, channel)
 std = np.std(X_train)
@@ -60,7 +65,7 @@ print('X train mean',np.mean(X_train))
 print('X train std',np.std(X_train))
 
 
-#X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=0.05, random_state=42, shuffle=True)
+X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=0.1, random_state=42, shuffle=True)
 
 # Reshaping to perform 2D convolution
 
@@ -68,13 +73,14 @@ X_valid = X_valid.reshape(X_valid.shape[0], feature_dim_1, feature_dim_2, channe
 X_valid = X_valid - mean
 X_valid = X_valid / std
 
-#X_test = X_test.reshape(X_test.shape[0], feature_dim_1, feature_dim_2, channel)
-
+X_test = X_test.reshape(X_test.shape[0], feature_dim_1, feature_dim_2, channel)
+X_test = X_test - mean
+X_test = X_test / std
 
 #one hot encoding of Y
 y_train_hot = to_categorical(y_train)
 y_valid_hot = to_categorical(y_valid)
-#y_test_hot = to_categorical(y_test)
+y_test_hot = to_categorical(y_test)
 
 
 def get_model():
@@ -101,7 +107,7 @@ def get_model():
     
     model.compile(loss=keras.losses.binary_crossentropy,
                   optimizer=sgd,
-                  metrics=['binary_accuracy', 'categorical_accuracy'])
+                  metrics=['binary_accuracy', 'top_k_categorical_accuracy'])
     return model
 
 model = get_model()
@@ -116,12 +122,9 @@ def predict(sample, model):
 	
 
 earlystopping = EarlyStopping(monitor='val_loss', min_delta=0.001, patience=10, verbose=verbose, mode='auto')
-model.fit(X_train, y_train_hot,batch_size=batch_size,epochs=epochs,callbacks=[earlystopping], verbose=verbose, validation_data=(X_valid, y_valid_hot))
-#model.save('SOLM2.h5') 
-#model.save_weights('SOLM2_weights.h5');
-
-#model = load_model('SOLM2.h5') 
-
+model.fit(X_train, y_train_hot,batch_size=batch_size,epochs=epochs, verbose=verbose, validation_data=(X_valid, y_valid_hot))
+model.save('model-8april.h5') 
+model.save_weights('model-weights-8april.h5')
 
 
 #
