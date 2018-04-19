@@ -13,6 +13,7 @@ from keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPooling2D,AveragePo
 from keras.utils import to_categorical
 from keras.utils import plot_model
 from keras.models import load_model
+from keras.models import Model
 from keras import regularizers
 import numpy as np
 from keras.callbacks import EarlyStopping
@@ -32,7 +33,7 @@ batch_size = 5
 #save_random_user_data()
 #save_user_data_as_numpy(max_len=feature_dim_1,max_len2=feature_dim_2)
 
-X_train, X_valid, y_train, y_valid = get_train_test(split_ratio=0.8, random_state=42,maxsamples=80,path=enrolldata)
+X_train, X_valid, y_train, y_valid= get_train_test(split_ratio=0.8, random_state=42,maxsamples=40,path=enrolldata)
 #mean=  -2.0341127496466784
 #std=  13.643874623449355
 
@@ -62,12 +63,24 @@ y_valid_hot = to_categorical(y_valid)
 y_test_hot = to_categorical(y_test)
 
 
-model = load_model('model-8april.h5')
-model.load_weights('model-weights-8april.h5')
+#model = load_model('model-8april.h5')
+#model.load_weights('model-weights-8april.h5')
+#model.layers.pop()
+#model.add(Dense(num_classes, activation='sigmoid', name='addedDense'))
 
-model.layers.pop()
-model.add(Dense(num_classes, activation='sigmoid', name='addedDense'))
+
+#Loading pre-trained model
+tempmodel = load_model('model-8april.h5')
+tempmodel.summary()
+new_layer = Dense(2, activation='sigmoid', name='my_dense')
+inp = tempmodel.input
+#using pre trained model except last 2 layers
+out = new_layer(tempmodel.layers[-2].output)
+
+#Creating new model
+model = Model(inp, out)
 model.summary()
+
 sgd = keras.optimizers.SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
 model.compile(loss=keras.losses.binary_crossentropy,
                   optimizer='adamax',
@@ -75,6 +88,7 @@ model.compile(loss=keras.losses.binary_crossentropy,
 model.fit(X_train, y_train_hot,batch_size=batch_size,epochs=epochs, verbose=verbose, validation_data=(X_valid, y_valid_hot))
 
 
+model.save('tester-model.h5')
 
 def predict(sample, model):
     sample_reshaped = sample.reshape(1, feature_dim_1, feature_dim_2, channel)
@@ -92,5 +106,7 @@ for i,sample in enumerate(X_test):
 
 acc = true / X_test.shape[0]
 print(acc)
+
+
 
 
